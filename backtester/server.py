@@ -87,13 +87,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json(store.list_symbols())
             if route == "/api/_debug":
                 # What the platform actually handed us, for diagnosing routing.
+                # Only routing-related headers -- no cookies or auth.
+                interesting = {
+                    k: v for k, v in self.headers.items()
+                    if k.lower().startswith(("x-vercel", "x-matched", "x-forwarded",
+                                             "x-original", "x-rewrite", "x-now"))
+                }
+                probe = {}
+                for name in ("index.html", "style.css", "app.js",
+                             "vendor/uPlot.iife.min.js"):
+                    probe[name] = (WEB_ROOT / name).is_file()
                 return self._send_json({
                     "raw_path": self.path,
                     "normalised_route": route,
                     "web_root": str(WEB_ROOT),
                     "web_root_exists": WEB_ROOT.is_dir(),
-                    "web_files": sorted(p.name for p in WEB_ROOT.iterdir())[:12]
-                                 if WEB_ROOT.is_dir() else [],
+                    "web_files_present": probe,
+                    "web_listing": sorted(x.name for x in WEB_ROOT.iterdir())[:12]
+                                   if WEB_ROOT.is_dir() else [],
+                    "routing_headers": interesting,
                     "db_path": str(store.DB_PATH),
                 })
             if not route.startswith("/api/"):
