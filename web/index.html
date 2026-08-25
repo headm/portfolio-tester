@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portfolio Backtester</title>
+<link rel="stylesheet" href="/vendor/uPlot.min.css">
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📈</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <h1>Portfolio Backtester</h1>
+  </div>
+  <div class="controls">
+    <label class="field">
+      <span>Starting amount</span>
+      <input id="initial" type="number" min="1" step="1000" value="10000">
+    </label>
+    <label class="field">
+      <span>Benchmark</span>
+      <input id="benchmark" type="text" value="SPY" placeholder="none" spellcheck="false">
+    </label>
+    <div class="field">
+      <span>Horizon</span>
+      <div class="chips" id="horizons" role="group" aria-label="Time horizon">
+        <button type="button" data-years="1">1Y</button>
+        <button type="button" data-years="3">3Y</button>
+        <button type="button" data-years="5">5Y</button>
+        <button type="button" data-years="10" class="on">10Y</button>
+        <button type="button" data-years="20">20Y</button>
+        <button type="button" data-years="max">Max</button>
+      </div>
+    </div>
+    <label class="field">
+      <span>From</span>
+      <input id="start" type="date">
+    </label>
+    <label class="field">
+      <span>To</span>
+      <input id="end" type="date">
+    </label>
+      <label class="field">
+        <span>Project forward</span>
+        <select id="project">
+          <option value="0" selected>Off</option>
+          <option value="10">10 years</option>
+          <option value="20">20 years</option>
+          <option value="30">30 years</option>
+        </select>
+      </label>
+      <label class="field toggle">
+        <span>Inflation</span>
+        <span class="check"><input id="real" type="checkbox"><span>Real terms</span></span>
+      </label>
+    <button id="run" class="primary" type="button">Run Test</button>
+  </div>
+  <div class="statusbar">
+    <span id="datastatus">Checking local price data&hellip;</span>
+    <button id="refresh" type="button" class="ghost">Update prices</button>
+    <span class="spacer"></span>
+    <button id="copylink" type="button" class="ghost">Copy link</button>
+    <button id="reset" type="button" class="ghost">Reset</button>
+  </div>
+  <details class="costs">
+    <summary>Trading costs &amp; assumptions</summary>
+    <div class="costs-grid">
+      <label class="field"><span>Commission / trade</span><input id="commission" type="number" min="0" step="0.5" value="0"></label>
+      <label class="field"><span>Slippage (bps)</span><input id="slippage" type="number" min="0" step="1" value="0"></label>
+      <label class="field"><span>Annual expense ratio %</span><input id="expense" type="number" min="0" step="0.01" value="0"></label>
+      <label class="field"><span>Risk-free rate %</span><input id="rf" type="number" min="0" step="0.1" value="0"></label>
+    </div>
+  </details>
+</header>
+
+<main>
+  <aside class="rail">
+    <div class="rail-head">
+      <h2>Portfolios</h2>
+      <button id="add" type="button" class="ghost">+ Add</button>
+    </div>
+    <div id="cards"></div>
+    <div class="presets">
+      <h3>Start from a preset</h3>
+      <div id="presets"></div>
+    </div>
+  </aside>
+
+  <section class="results">
+    <div id="messages"></div>
+    <div id="stale" class="msg warn" hidden>
+      <span class="ico">⟳</span>
+      <span>Settings have changed since this chart was drawn — run again to update it.</span>
+    </div>
+
+    <div id="empty" class="empty">
+      <p><strong>Build a portfolio and run it.</strong></p>
+      <p>Pick tickers and weights on the left, choose a horizon, and compare
+         strategies side by side.</p>
+    </div>
+
+    <div id="output" hidden>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Growth</h2>
+            <p class="sub" id="growth-sub"></p>
+          </div>
+          <div class="chips" id="scale" role="group" aria-label="Chart options">
+            <button type="button" data-mode="balance" class="on">Balance</button>
+            <button type="button" data-mode="index">Growth of $1</button>
+            <button type="button" data-axis="log" class="on sep">Log</button>
+            <button type="button" data-axis="linear">Linear</button>
+          </div>
+        </div>
+        <div id="legend" class="legend"></div>
+        <div id="chart" class="chart"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Drawdown</h2>
+            <p class="sub">Decline from the previous high — how deep the holes get, and how long they last.</p>
+          </div>
+        </div>
+        <div id="ddchart" class="chart"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Results</h2>
+            <p class="sub">Best value in each row is marked. Returns are time-weighted unless noted.</p>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="metrics"></table></div>
+      </section>
+
+
+      <section class="panel" id="projection-panel" hidden>
+        <div class="panel-head">
+          <div>
+            <h2>Projection</h2>
+            <p class="sub">Thousands of possible futures, built by reshuffling this
+               portfolio's own history in quarter-long blocks. <strong>This is not a
+               forecast.</strong> It assumes the future resembles a rearrangement of
+               one particular stretch of the past — if the next decades differ in
+               kind rather than in order, none of this applies.</p>
+          </div>
+          <div class="chips" id="projection-focus" role="group" aria-label="Show range for"></div>
+        </div>
+        <div class="table-wrap"><table id="projection-table"></table></div>
+        <div id="projchart" class="chart"></div>
+        <p class="fieldnote" id="projnote"></p>
+      </section>
+
+      <section class="panel" id="rolling-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Rolling returns</h2>
+            <p class="sub">Annualized return of <em>every</em> holding period of this
+               length, not just the one starting on your chosen date. The spread shows
+               how much the result depended on when you happened to buy.</p>
+          </div>
+          <div class="chips" id="rolling-windows" role="group" aria-label="Holding period"></div>
+        </div>
+        <div class="table-wrap"><table id="rolling-table"></table></div>
+        <div id="rollchart" class="chart"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Return by calendar year</h2>
+            <p class="sub">Partial first and last years are shown faded.</p>
+          </div>
+        </div>
+        <div id="years" class="years"></div>
+      </section>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p><strong>This is a historical simulation, not advice.</strong> Past performance
+  does not predict future results. Backtests assume fractional shares, ignore taxes,
+  and cannot capture the discipline required to actually hold a strategy through the
+  drawdowns shown above. I'm not a licensed financial adviser — treat this as a
+  research toy.</p>
+</footer>
+
+<script src="/vendor/uPlot.iife.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
