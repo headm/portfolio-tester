@@ -1,5 +1,5 @@
 [project]
-name = "portfolio-tester"
+name = "wealthmap"
 version = "1.0.0"
 description = "Local web app for backtesting personal portfolios"
 requires-python = ">=3.9"

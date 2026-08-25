@@ -26,7 +26,7 @@ def _db_path():
     if override:
         return Path(override)
     if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
-        return Path(tempfile.gettempdir()) / "portfolio-tester" / "vault.sqlite"
+        return Path(tempfile.gettempdir()) / "wealthmap" / "vault.sqlite"
     return Path(__file__).resolve().parent.parent / "data" / "vault.sqlite"
 
 

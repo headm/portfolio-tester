@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portfolio Tester.
+"""Wealthmap.
 
   python3 run.py                 start the web app
   python3 run.py --port 9000     ... on a different port
@@ -47,7 +47,7 @@ def main():
                         server_class=_ThreadingServer,
                         handler_class=_QuietHandler)
     url = f"http://127.0.0.1:{port}/"
-    print(f"\n  Portfolio Tester running at {url}")
+    print(f"\n  Wealthmap running at {url}")
     print("  Press Ctrl-C to stop.\n")
     if "--no-browser" not in args:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
