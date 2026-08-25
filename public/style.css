@@ -166,11 +166,16 @@ main {
 .rail {
   position: sticky;
   top: calc(var(--topbar-h, 145px) + 18px);
-  max-height: calc(100vh - var(--topbar-h, 145px) - 36px);
+  /* Reach the viewport bottom exactly. Stopping short of it left a strip of
+     page background below the panel that read as a stray bar, with cards
+     sliced off at the hard edge as they scrolled under it. */
+  max-height: calc(100vh - var(--topbar-h, 145px) - 18px);
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 8px;
   margin-right: -8px;
+  /* So the last card clears the bottom instead of being cut mid-row. */
+  padding-bottom: 20px;
   display: flex; flex-direction: column; gap: 12px;
   scrollbar-width: thin;
   scrollbar-color: var(--axis) transparent;
@@ -178,9 +183,8 @@ main {
 .rail::-webkit-scrollbar { width: 8px; }
 .rail::-webkit-scrollbar-thumb { background: var(--axis); border-radius: 4px; }
 .rail::-webkit-scrollbar-track { background: transparent; }
-.rail-head { position: sticky; top: 0; background: var(--plane); z-index: 2; padding-bottom: 2px; }
 @media (max-width: 940px) {
-  .rail { position: static; max-height: none; overflow: visible; }
+  .rail { position: static; max-height: none; overflow: visible; padding-bottom: 0; }
 }
 .rail-head { display: flex; align-items: center; justify-content: space-between; }
 #cards { flex: none; }
