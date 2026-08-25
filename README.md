@@ -1,4 +1,4 @@
-# Portfolio Backtester
+# Portfolio Tester
 
 A local web app for testing how a bundle of stocks or ETFs would have performed,
 and for comparing portfolio strategies side by side over horizons up to 20+ years.

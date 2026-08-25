@@ -1,4 +1,4 @@
-/* Portfolio backtester UI.
+/* Portfolio Tester UI.
    Series colors come from CSS custom properties so light/dark swap in one place
    and the JS never hard-codes a hex. */
 
