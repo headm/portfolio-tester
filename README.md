@@ -160,15 +160,21 @@ literature reports for this period and asset mix.
 
 ## Deploying it
 
-It runs on Vercel. Static files live in `public/` (served straight from the
-CDN) and each endpoint is its own file under `api/`, matching Vercel's
-file-based routing — so no URL rewrite exists, and nothing can arrive at a
-function under a path it doesn't recognise. `backtester/serverless.py` is the
-shared base class; the endpoints themselves are four lines each.
+The app is a **WSGI callable** in `backtester/wsgi.py`. That one object is
+everything: routing, the API, and static files.
 
-Both entrypoints — `backtester/server.py` locally, `api/*.py` deployed — call
-the same `backtester/api.py`, so behaviour cannot drift between them.
-`tests/test_endpoints.py` asserts that.
+- Locally, `run.py` serves it through `wsgiref`.
+- On Vercel, `pyproject.toml` names it: `[tool.vercel] entrypoint =
+  "api.app:app"`. Vercel's current Python runtime wants exactly one entrypoint
+  declared this way; per-file handlers under `api/` are not what it looks for.
+- On any other host, `gunicorn backtester.wsgi:app` works, because WSGI is the
+  portable interface.
+
+There is one implementation, so local and deployed cannot drift.
+`tests/test_endpoints.py` asserts the declared entrypoint resolves, that it is
+the same object `run.py` serves, and that every route the frontend calls
+answers — including that CSS comes back as CSS, which is how a previous
+deployment silently lost its stylesheet.
 
 Read the rest of this section before deploying, though, because the
 architecture and the platform still disagree on storage.
@@ -250,9 +256,10 @@ backtester/
   engine.py                 daily simulation
   metrics.py                CAGR, drawdown, Sharpe, XIRR, rolling returns
   montecarlo.py             block-bootstrap forward projection
-  api.py, server.py         stdlib HTTP layer
+  api.py                    request handling
+  wsgi.py                   the WSGI app: routing + static, one implementation
 public/                     single-page UI, no build step
-api/                        one file per endpoint (Vercel file-based routing)
+api/app.py                  the entrypoint Vercel is pointed at
 tests/
 ```
 

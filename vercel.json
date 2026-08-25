@@ -1,10 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/status.py":   { "includeFiles": "backtester/**" },
-    "api/presets.py":  { "includeFiles": "backtester/**" },
-    "api/search.py":   { "includeFiles": "backtester/**" },
-    "api/backtest.py": { "includeFiles": "backtester/**" },
-    "api/refresh.py":  { "includeFiles": "backtester/**" }
+    "api/app.py": {
+      "includeFiles": "backtester/**"
+    }
   }
 }

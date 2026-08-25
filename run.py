@@ -4,13 +4,29 @@
   python3 run.py                 start the web app
   python3 run.py --port 9000     ... on a different port
   python3 run.py import <path>   load stooq data (fallback source)
+
+Serves the same WSGI application that the deployment does, so local and
+deployed behaviour cannot diverge.
 """
 
 import sys
 import threading
 import webbrowser
+from socketserver import ThreadingMixIn
+from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
 
-from backtester import server
+from backtester.wsgi import app
+
+
+class _ThreadingServer(ThreadingMixIn, WSGIServer):
+    # The UI fires several requests at once; wsgiref is serial by default.
+    daemon_threads = True
+
+
+class _QuietHandler(WSGIRequestHandler):
+    def log_message(self, fmt, *args):
+        if "/api/" in (self.path or ""):
+            print(f"  {self.command} {self.path}")
 
 
 def main():
@@ -27,7 +43,9 @@ def main():
     if "--port" in args:
         port = int(args[args.index("--port") + 1])
 
-    httpd = server.serve(port=port)
+    httpd = make_server("127.0.0.1", port, app,
+                        server_class=_ThreadingServer,
+                        handler_class=_QuietHandler)
     url = f"http://127.0.0.1:{port}/"
     print(f"\n  Portfolio Tester running at {url}")
     print("  Press Ctrl-C to stop.\n")
