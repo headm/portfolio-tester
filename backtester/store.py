@@ -5,12 +5,32 @@ only place that knows about SQL, so swapping in Postgres/Supabase later means
 rewriting this file and nothing else.
 """
 
+import os
 import sqlite3
+import tempfile
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "vault.sqlite"
+
+def _db_path():
+    """Where the price vault lives.
+
+    Locally that is data/vault.sqlite next to the code. On a serverless host the
+    deployment filesystem is read-only and only the temp directory is writable --
+    and that temp directory is per-instance and discarded when the instance is
+    recycled, so the vault there is a short-lived scratch copy rather than a
+    cache that survives. Set BACKTESTER_DB to point at a durable volume.
+    """
+    override = os.environ.get("BACKTESTER_DB")
+    if override:
+        return Path(override)
+    if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+        return Path(tempfile.gettempdir()) / "portfolio-tester" / "vault.sqlite"
+    return Path(__file__).resolve().parent.parent / "data" / "vault.sqlite"
+
+
+DB_PATH = _db_path()
 
 # How a series was adjusted. The engine always reads adj_close; this records what
 # that column actually means so the UI can warn when dividends are missing.

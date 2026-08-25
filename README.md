@@ -158,6 +158,36 @@ Sanity check — a $1M 60/40 over 30 years, real terms, by withdrawal rate:
 The cliff between 5% and 6%, and ~99% survival at 4%, are what the retirement
 literature reports for this period and asset mix.
 
+## Deploying it
+
+It runs on Vercel — `api/index.py` and `vercel.json` are the whole adapter — but
+read this first, because the architecture and the platform disagree.
+
+The app is built around a price vault on local disk. A serverless deployment has
+no such thing: the bundle is read-only, only the temp directory is writable, and
+that directory belongs to one instance and disappears when the instance is
+recycled. So every cold start begins with an empty vault and refetches from
+scratch — about 2s for a two-ticker portfolio, versus 0.04s once warm. It works,
+it is just paying that toll repeatedly rather than once.
+
+There is a second consideration. Locally, this is one person making a handful of
+requests to stockanalysis.com. Deployed publicly it becomes a shared server
+calling an undocumented third-party endpoint on behalf of every visitor, with no
+persistent cache to blunt it. That is a good way to get an IP blocked, and it is
+a different bargain than the one the local tool strikes.
+
+If you want it hosted, the architecture fits a container host with a persistent
+volume — Fly.io, Railway, Render — far better than it fits serverless. Point
+`BACKTESTER_DB` at the mounted volume and the vault behaves exactly as it does
+locally:
+
+```bash
+BACKTESTER_DB=/data/vault.sqlite python3 run.py
+```
+
+To stay on Vercel with a durable vault, `store.py` is the only module that
+touches SQL — swapping it for Postgres is contained to that one file.
+
 ## Known limitations
 
 - **Survivorship bias is yours to avoid.** Backtesting today's winners (the
