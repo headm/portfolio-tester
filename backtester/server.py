@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import api
+from . import api, store
 
 WEB_ROOT = Path(__file__).resolve().parent.parent / "web"
 MIME = {
@@ -21,6 +21,22 @@ MAX_BODY = 1 << 20
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "backtester"
+
+    def _route(self):
+        """The request path, normalised.
+
+        Behind a platform rewrite the path can arrive carrying the rewrite's
+        own destination prefix (e.g. /web/app.js when everything is rewritten
+        into a static folder). Strip that so one router works both when this is
+        run directly and when it is deployed behind a rewrite.
+        """
+        route = urlparse(self.path).path
+        for prefix in ("/web/", "/api/index"):
+            if route == prefix.rstrip("/"):
+                return "/"
+            if prefix.endswith("/") and route.startswith(prefix):
+                return route[len(prefix) - 1:]
+        return route
 
     def log_message(self, fmt, *args):
         if "/api/" in (self.path or ""):
@@ -54,7 +70,7 @@ class Handler(BaseHTTPRequestHandler):
     # -- routes ----------------------------------------------------------
     def do_GET(self):
         url = urlparse(self.path)
-        route = url.path
+        route = self._route()
         try:
             if route in ("/", "/index.html"):
                 return self._send_file("index.html")
@@ -68,10 +84,24 @@ class Handler(BaseHTTPRequestHandler):
             if route.startswith("/api/symbol/"):
                 return self._send_json(api.symbol_info(route.split("/api/symbol/", 1)[1]))
             if route == "/api/symbols":
-                from . import store
                 return self._send_json(store.list_symbols())
+            if route == "/api/_debug":
+                # What the platform actually handed us, for diagnosing routing.
+                return self._send_json({
+                    "raw_path": self.path,
+                    "normalised_route": route,
+                    "web_root": str(WEB_ROOT),
+                    "web_root_exists": WEB_ROOT.is_dir(),
+                    "web_files": sorted(p.name for p in WEB_ROOT.iterdir())[:12]
+                                 if WEB_ROOT.is_dir() else [],
+                    "db_path": str(store.DB_PATH),
+                })
             if not route.startswith("/api/"):
-                return self._send_file(route.lstrip("/"))
+                if (WEB_ROOT / route.lstrip("/")).is_file():
+                    return self._send_file(route.lstrip("/"))
+                # Unknown non-API path: serve the app shell. A single-page app
+                # should not 404 on a path the client router understands.
+                return self._send_file("index.html")
             self._error("Not found", 404)
         except api.ApiError as exc:
             self._error(str(exc), exc.status)
@@ -80,7 +110,7 @@ class Handler(BaseHTTPRequestHandler):
             self._error(f"{type(exc).__name__}: {exc}", 500)
 
     def do_POST(self):
-        route = urlparse(self.path).path
+        route = self._route()
         try:
             length = int(self.headers.get("Content-Length") or 0)
             if length > MAX_BODY:
