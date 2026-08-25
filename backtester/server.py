@@ -8,7 +8,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import api, store
 
-WEB_ROOT = Path(__file__).resolve().parent.parent / "web"
+WEB_ROOT = Path(__file__).resolve().parent.parent / "public"
 MIME = {
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
@@ -21,26 +21,6 @@ MAX_BODY = 1 << 20
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "backtester"
-
-    def _route(self):
-        """The request path, normalised.
-
-        Behind a platform rewrite the path can arrive carrying the rewrite's
-        own destination prefix (e.g. /web/app.js when everything is rewritten
-        into a static folder). Strip that so one router works both when this is
-        run directly and when it is deployed behind a rewrite.
-        """
-        route = urlparse(self.path).path
-        for prefix in ("/web/", "/api/index"):
-            if route == prefix.rstrip("/"):
-                return "/"
-            if prefix.endswith("/") and route.startswith(prefix):
-                return route[len(prefix) - 1:]
-        return route
-
-    def log_message(self, fmt, *args):
-        if "/api/" in (self.path or ""):
-            print(f"  {self.command} {self.path}")
 
     # -- helpers ---------------------------------------------------------
     def _send_json(self, obj, status=200):
@@ -70,7 +50,7 @@ class Handler(BaseHTTPRequestHandler):
     # -- routes ----------------------------------------------------------
     def do_GET(self):
         url = urlparse(self.path)
-        route = self._route()
+        route = url.path
         try:
             if route in ("/", "/index.html"):
                 return self._send_file("index.html")
@@ -85,35 +65,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json(api.symbol_info(route.split("/api/symbol/", 1)[1]))
             if route == "/api/symbols":
                 return self._send_json(store.list_symbols())
-            if route == "/api/_debug":
-                # What the platform actually handed us, for diagnosing routing.
-                # Only routing-related headers -- no cookies or auth.
-                interesting = {
-                    k: v for k, v in self.headers.items()
-                    if k.lower().startswith(("x-vercel", "x-matched", "x-forwarded",
-                                             "x-original", "x-rewrite", "x-now"))
-                }
-                probe = {}
-                for name in ("index.html", "style.css", "app.js",
-                             "vendor/uPlot.iife.min.js"):
-                    probe[name] = (WEB_ROOT / name).is_file()
-                return self._send_json({
-                    "raw_path": self.path,
-                    "normalised_route": route,
-                    "web_root": str(WEB_ROOT),
-                    "web_root_exists": WEB_ROOT.is_dir(),
-                    "web_files_present": probe,
-                    "web_listing": sorted(x.name for x in WEB_ROOT.iterdir())[:12]
-                                   if WEB_ROOT.is_dir() else [],
-                    "routing_headers": interesting,
-                    "db_path": str(store.DB_PATH),
-                })
             if not route.startswith("/api/"):
-                if (WEB_ROOT / route.lstrip("/")).is_file():
-                    return self._send_file(route.lstrip("/"))
-                # Unknown non-API path: serve the app shell. A single-page app
-                # should not 404 on a path the client router understands.
-                return self._send_file("index.html")
+                return self._send_file(route.lstrip("/"))
             self._error("Not found", 404)
         except api.ApiError as exc:
             self._error(str(exc), exc.status)
@@ -122,7 +75,7 @@ class Handler(BaseHTTPRequestHandler):
             self._error(f"{type(exc).__name__}: {exc}", 500)
 
     def do_POST(self):
-        route = self._route()
+        route = urlparse(self.path).path
         try:
             length = int(self.headers.get("Content-Length") or 0)
             if length > MAX_BODY:

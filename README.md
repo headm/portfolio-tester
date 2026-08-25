@@ -160,8 +160,18 @@ literature reports for this period and asset mix.
 
 ## Deploying it
 
-It runs on Vercel — `api/index.py` and `vercel.json` are the whole adapter — but
-read this first, because the architecture and the platform disagree.
+It runs on Vercel. Static files live in `public/` (served straight from the
+CDN) and each endpoint is its own file under `api/`, matching Vercel's
+file-based routing — so no URL rewrite exists, and nothing can arrive at a
+function under a path it doesn't recognise. `backtester/serverless.py` is the
+shared base class; the endpoints themselves are four lines each.
+
+Both entrypoints — `backtester/server.py` locally, `api/*.py` deployed — call
+the same `backtester/api.py`, so behaviour cannot drift between them.
+`tests/test_endpoints.py` asserts that.
+
+Read the rest of this section before deploying, though, because the
+architecture and the platform still disagree on storage.
 
 The app is built around a price vault on local disk. A serverless deployment has
 no such thing: the bundle is read-only, only the temp directory is writable, and
@@ -205,6 +215,7 @@ touches SQL — swapping it for Postgres is contained to that one file.
 
 ```bash
 python3 tests/test_engine.py
+python3 tests/test_endpoints.py
 ```
 
 Known-answer tests: a series compounding at exactly 10%/yr must report 10.000%
@@ -240,7 +251,8 @@ backtester/
   metrics.py                CAGR, drawdown, Sharpe, XIRR, rolling returns
   montecarlo.py             block-bootstrap forward projection
   api.py, server.py         stdlib HTTP layer
-web/                        single-page UI, no build step
+public/                     single-page UI, no build step
+api/                        one file per endpoint (Vercel file-based routing)
 tests/
 ```
 
